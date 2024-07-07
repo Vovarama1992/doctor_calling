@@ -1,0 +1,25 @@
+version: '3.8'
+
+services:
+  mongo:
+    image: mongo:latest
+    container_name: mongo
+    ports:
+      - '27017:27017'
+    volumes:
+      - mongo-data:/data/db
+
+  app:
+    build: .
+    container_name: app
+    environment:
+      - MONGO_URI=mongodb://mongo:27017/clinic
+      - TELEGRAM_BOT_TOKEN=7314320218:AAFSt15CNHOHBH0BE7cUViigUxm80Vg0hos
+    env_file:
+      - .env
+    ports:
+      - '3000:3000'
+    depends_on:
+      - mongo
+volumes:
+  mongo-data:
