@@ -1,7 +1,7 @@
 import { Telegraf } from 'telegraf';
 import axios from 'axios';
 import * as dotenv from 'dotenv';
-import { throwError } from 'rxjs';
+import schedule from 'node-schedule';
 
 dotenv.config();
 
@@ -148,43 +148,40 @@ bot.action(/slot_(.+)/, async (ctx) => {
     const patientResponse = await axios.get(`${BASE_URL}/patients`, {
       params: { telephone: phoneNumber },
     });
-    const patient = patientResponse.data;
+    const patient = patientResponse.data.patient;
 
     await axios.patch(`${BASE_URL}/slots/${slotId}/book`, {
       patientId: patient.id,
     });
 
+    const slotResponse = await axios.get(`${BASE_URL}/slots/${slotId}`);
+    const slot = slotResponse.data;
+
     ctx.reply('Вы успешно записались на прием!');
-    notifyAllPatients(ctx, patient, slotId);
+    scheduleReminders(userId, new Date(slot.date));
   } catch (error) {
     console.error(error);
     ctx.reply('Произошла ошибка при записи на прием. Попробуйте снова.');
   }
 });
 
-const notifyAllPatients = async (ctx: any, patient: any, slotId: string) => {
-  try {
-    const slotResponse = await axios.get(`${BASE_URL}/slots/${slotId}`);
-    const slot = slotResponse.data;
+const scheduleReminders = (chatId: number, slotDate: Date) => {
+  const oneDayBefore = new Date(slotDate.getTime() - 24 * 60 * 60 * 1000);
+  const twoHoursBefore = new Date(slotDate.getTime() - 2 * 60 * 60 * 1000);
 
-    const doctorResponse = await axios.get(`${BASE_URL}/doctors`, {
-      params: { id: slot.doctor_id },
-    });
-    const doctor = doctorResponse.data;
+  schedule.scheduleJob(oneDayBefore, () => {
+    bot.telegram.sendMessage(
+      chatId,
+      'Напоминание: до вашего приема остался один день.',
+    );
+  });
 
-    const message = `Пациент ${patient.name} записался на прием к ${doctor.name} на ${new Date(slot.date).toLocaleString()}`;
-
-    const patientsResponse = await axios.get(`${BASE_URL}/patients`);
-    const patients = patientsResponse.data;
-
-    patients.forEach((p: any) => {
-      if (p.telegramChatId && p.telegramChatId !== ctx.from?.id) {
-        bot.telegram.sendMessage(p.telegramChatId, message);
-      }
-    });
-  } catch (error) {
-    console.error('Ошибка при отправке уведомления:', error);
-  }
+  schedule.scheduleJob(twoHoursBefore, () => {
+    bot.telegram.sendMessage(
+      chatId,
+      'Напоминание: до вашего приема осталось два часа.',
+    );
+  });
 };
 
 bot.launch();
