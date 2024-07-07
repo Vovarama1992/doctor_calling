@@ -11,8 +11,8 @@ const BASE_URL = 'http://localhost:3000';
 interface UserState {
   phoneNumber?: string;
   name?: string;
-  specId?: string;
   doctorId?: string;
+  slots?: { [key: string]: string };
 }
 
 const userState: { [key: number]: UserState } = {};
@@ -96,7 +96,7 @@ const askForDoctor = async (ctx: any, specialization: string) => {
 
     const buttons = response.data.map((doc: any) => ({
       text: doc.name,
-      callback_data: `doctor_${doc.id}`, // Добавляем префикс
+      callback_data: `doctor_${doc.id}`,
     }));
 
     ctx.telegram.sendMessage(ctx.chat.id, 'Выберите врача:', {
@@ -123,10 +123,14 @@ bot.action(/doctor_(.+)/, async (ctx) => {
   try {
     const response = await axios.get(`${BASE_URL}/slots/doctor/${doctorId}`);
 
-    const buttons = response.data.map((slot: any) => ({
-      text: new Date(slot.date).toLocaleString(),
-      callback_data: `slot_${slot.id}`,
-    }));
+    const buttons = response.data.map((slot: any) => {
+      userState[userId].slots = userState[userId].slots || {};
+      userState[userId].slots[slot.id] = slot.date;
+      return {
+        text: new Date(slot.date).toLocaleString(),
+        callback_data: `slot_${slot.id}`,
+      };
+    });
 
     ctx.telegram.sendMessage(ctx.chat.id, 'Выберите время приема:', {
       reply_markup: {
@@ -146,7 +150,7 @@ bot.action(/slot_(.+)/, async (ctx) => {
 
   try {
     const patientResponse = await axios.get(`${BASE_URL}/patients`, {
-      params: { telephone: phoneNumber },
+      params: { telephone: phoneNumber, chatId: userId },
     });
     const patient = patientResponse.data.patient;
 
@@ -154,11 +158,9 @@ bot.action(/slot_(.+)/, async (ctx) => {
       patientId: patient.id,
     });
 
-    const slotResponse = await axios.get(`${BASE_URL}/slots/${slotId}`);
-    const slot = slotResponse.data;
-
+    const slotDate = new Date(userState[userId].slots![slotId]);
     ctx.reply('Вы успешно записались на прием!');
-    scheduleReminders(userId, new Date(slot.date));
+    scheduleReminders(userId, slotDate);
   } catch (error) {
     console.error(error);
     ctx.reply('Произошла ошибка при записи на прием. Попробуйте снова.');

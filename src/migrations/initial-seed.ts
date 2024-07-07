@@ -56,7 +56,7 @@ const seedDoctors = async () => {
   console.log('Doctors seeded');
 };
 
-const seedSlots = async () => {
+ const seedSlots = async () => {
   await Slot.deleteMany({});
 
   const doctorIds = (await Doctor.find()).map((doc) => doc.id);
@@ -81,9 +81,32 @@ const seedSlots = async () => {
   console.log('Slots seeded');
 };
 
+const beforeTwoHours = async () => {
+  await Slot.deleteMany({});
+  const doctors = await Doctor.find();
+  const currentDate = new Date();
+
+  const slots = doctors.map((doctor: any) => {
+    const slotDate = new Date(
+      currentDate.getTime() + 2 * 60 * 60 * 1000 + 10 * 60 * 1000,
+    ); // +2 часа 10 минут
+    return new Slot({
+      id: uuidv4(),
+      date: slotDate,
+      doctor_id: doctor.id,
+      patient_id: null,
+    });
+  });
+
+  await Slot.insertMany(slots);
+  console.log('added slots to check');
+};
+
 export const runMigration = async () => {
+  
   await seedSpecializations();
   await seedDoctors();
   await seedSlots();
+  await beforeTwoHours();
   console.log('Migration completed');
 };
